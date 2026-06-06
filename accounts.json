@@ -1,0 +1,10 @@
+{
+  "accounts": [
+    {
+      "username": "mc-username",
+      "password": "passwod",
+      "registered_at": "2026-02-19T22:29:00.000Z",
+      "status": "active"
+    }
+  ]
+}
