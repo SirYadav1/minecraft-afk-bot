@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bot Dashboard</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        :root {
+            --bg: #121212;
+            --card-bg: #1e1e1e;
+            --border: #333;
+            --text: #ffffff;
+            --text-dim: #999;
+            --primary: #3b82f6;
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            line-height: 1.5;
+        }
+
+        .header {
+            background: var(--card-bg);
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .logo {
+            font-size: 1.25rem;
+            font-weight: bold;
+            color: var(--primary);
+        }
+
+        .info-pill {
+            background: #2a2a2a;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            color: var(--text-dim);
+            border: 1px solid var(--border);
+        }
+
+        .main-container {
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            gap: 1.5rem;
+            padding: 1.5rem;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        @media (max-width: 900px) {
+            .main-container {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .section-title {
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-dim);
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .bot-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .bot-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            transition: border-color 0.2s;
+        }
+
+        .bot-card:hover {
+            border-color: #444;
+        }
+
+        .bot-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.75rem;
+        }
+
+        .bot-name {
+            font-weight: 600;
+            font-size: 1.1rem;
+        }
+
+        .status-tag {
+            font-size: 0.7rem;
+            padding: 2px 8px;
+            border-radius: 4px;
+            background: #2a2a2a;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .stat-row {
+            margin-bottom: 8px;
+        }
+
+        .stat-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            margin-bottom: 4px;
+        }
+
+        .bar-bg {
+            height: 6px;
+            background: #2a2a2a;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .bar-fill {
+            height: 100%;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .hp-fill {
+            background: var(--danger);
+        }
+
+        .food-fill {
+            background: var(--warning);
+        }
+
+        .pos-text {
+            font-size: 0.75rem;
+            color: var(--primary);
+            margin-top: 4px;
+        }
+
+        .bot-btns {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-top: 1rem;
+        }
+
+        .btn {
+            padding: 8px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            background: #2a2a2a;
+            color: var(--text);
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 500;
+            transition: all 0.2s;
+            text-align: center;
+        }
+
+        .btn:hover:not(:disabled) {
+            background: #333;
+            border-color: #555;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background: #2563eb;
+        }
+
+        .btn-danger {
+            background: var(--danger);
+            border-color: var(--danger);
+            color: white;
+        }
+
+        .btn-danger:hover:not(:disabled) {
+            background: #dc2626;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .console-container {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .terminal {
+            background: #000;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            height: 60vh;
+            min-height: 400px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .term-head {
+            background: #1a1a1a;
+            padding: 8px 16px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.85rem;
+        }
+
+        .term-body {
+            flex: 1;
+            padding: 12px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 0.9rem;
+            color: #ddd;
+        }
+
+        .log-item {
+            margin-bottom: 4px;
+            word-break: break-all;
+        }
+
+        .log-time {
+            color: #666;
+            margin-right: 8px;
+        }
+
+        .log-user {
+            color: var(--primary);
+            font-weight: bold;
+            margin-right: 8px;
+        }
+
+        .type-error {
+            color: var(--danger);
+        }
+
+        .type-success {
+            color: var(--success);
+        }
+
+        .type-warning {
+            color: var(--warning);
+        }
+
+        .controls {
+            background: var(--card-bg);
+            padding: 1.25rem;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+
+        .input-group {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 1rem;
+        }
+
+        @media (max-width: 600px) {
+            .input-group {
+                flex-direction: column;
+            }
+        }
+
+        select,
+        input {
+            background: #2a2a2a;
+            border: 1px solid var(--border);
+            color: white;
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 1rem;
+            outline: none;
+        }
+
+        input {
+            flex: 1;
+        }
+
+        .quick-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .q-btn {
+            padding: 6px 12px;
+            font-size: 0.8rem;
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-dim);
+            border-radius: 4px;
+            cursor: pointer;
+            text-transform: uppercase;
+        }
+
+        .q-btn:hover {
+            border-color: var(--text-dim);
+            color: var(--text);
+        }
+
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #333;
+            border-radius: 3px;
+        }
+
+        .server-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: #2a2a2a;
+            padding: 4px 12px;
+            border-radius: 20px;
+            border: 1px solid var(--border);
+            cursor: pointer;
+        }
+
+        .server-status:hover {
+            background: #333;
+        }
+    </style>
+    <base target="_blank">
+</head>
+
+<body>
+    <header class="header">
+        <div class="logo">Bot Dashboard</div>
+        <div class="header-info" style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+            <div class="server-status" id="server-status-btn" onclick="pingServer()" title="Click to ping server">
+                <span id="server-led"
+                    style="width: 8px; height: 8px; border-radius: 50%; background: #666; box-shadow: 0 0 5px #666;"></span>
+                <span id="server-text"
+                    style="font-size: 0.75rem; font-weight: 800; color: #666; letter-spacing: 0.5px;">CHECKING...</span>
+            </div>
+            <div
+                style="display: flex; align-items: center; gap: 8px; background: #2a2a2a; padding: 4px 12px; border-radius: 20px; border: 1px solid var(--border);">
+                <span id="syst-led"
+                    style="width: 8px; height: 8px; border-radius: 50%; background: #ef4444; box-shadow: 0 0 5px #ef4444;"></span>
+                <span id="syst-text"
+                    style="font-size: 0.75rem; font-weight: 800; color: #ef4444; letter-spacing: 0.5px;">OFFLINE</span>
+            </div>
+            <div class="info-pill">Server: <span id="node-ip">...</span></div>
+            <div class="info-pill" id="global-timer" style="color: var(--success);">Ready</div>
+        </div>
+    </header>
+
+    <div class="main-container">
+        <aside class="sidebar">
+            <h2 class="section-title">Active Bots</h2>
+            <div class="bot-list" id="bot-list"></div>
+        </aside>
+
+        <main class="console-container">
+            <div class="terminal">
+                <div class="term-head">
+                    <span>Console Output</span>
+                    <button class="btn"
+                        style="border:none; color:var(--text-dim); background:transparent; font-size: 0.75rem;"
+                        onclick="document.getElementById('terminal').innerHTML=''">[Clear Logs]</button>
+                </div>
+                <div class="term-body" id="terminal"></div>
+            </div>
+
+            <div class="controls">
+                <div class="input-group">
+                    <select id="bot-target" style="width: 180px;">
+                        <option value="all">Send to All</option>
+                    </select>
+                    <input type="text" id="cmd-input" placeholder="Type command...">
+                    <button class="btn btn-primary" onclick="issueCommand()">Send</button>
+                </div>
+                <div class="quick-actions">
+                    <button class="q-btn" onclick="issueCommand('/ping')">Ping All</button>
+                    <button class="q-btn" onclick="socket.emit('eat-food', 'all')">Eat Food</button>
+                    <button class="q-btn" onclick="issueCommand('/help')">Help</button>
+                    <button class="q-btn" onclick="pingServer()">Check Server</button>
+                    <button class="q-btn" onclick="reconnectSelected()"
+                        style="margin-left:auto; border-color:var(--warning); color:var(--warning);">Restart</button>
+                    <button class="q-btn" onclick="stopSelected()"
+                        style="border-color:var(--danger); color:var(--danger);">Stop</button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const socket = io();
+        let globalCooldown = 0;
+        let botData = {};
+
+        socket.on('connect', () => {
+            console.log('Connected to dashboard');
+            pingServer();
+        });
+
+        socket.on('connect_error', (err) => {
+            console.error('Connection Error:', err.message);
+        });
+
+        function formatUptime(ms) {
+            if (!ms) return '0s';
+            const totalSec = Math.floor((Date.now() - ms) / 1000);
+            if (totalSec < 0) return '0s';
+            const h = Math.floor(totalSec / 3600);
+            const m = Math.floor((totalSec % 3600) / 60);
+            const s = totalSec % 60;
+            return `${h > 0 ? h + 'h ' : ''}${m > 0 ? m + 'm ' : ''}${s}s`;
+        }
+
+        function pingServer() {
+            const led = document.getElementById('server-led');
+            const txt = document.getElementById('server-text');
+            led.style.background = '#f59e0b';
+            led.style.boxShadow = '0 0 5px #f59e0b';
+            txt.innerText = 'CHECKING...';
+            txt.style.color = '#f59e0b';
+            socket.emit('ping-server');
+        }
+
+        setInterval(() => {
+            let onlineCount = 0;
+            Object.keys(botData).forEach(u => {
+                const data = botData[u];
+                const card = document.getElementById(`card-${u}`);
+                const isOnline = data.status && (data.status.includes('Online') || data.status.includes('Game'));
+
+                if (isOnline) {
+                    onlineCount++;
+                    if (card && data.onlineSince) {
+                        card.querySelector('.uptime-val').innerText = formatUptime(data.onlineSince);
+                    }
+                } else if (card) {
+                    card.querySelector('.uptime-val').innerText = '---';
+                }
+            });
+
+            const led = document.getElementById('syst-led');
+            const txt = document.getElementById('syst-text');
+            if (onlineCount > 0) {
+                led.style.background = '#10b981';
+                led.style.boxShadow = '0 0 8px #10b981';
+                txt.innerText = 'ONLINE';
+                txt.style.color = '#10b981';
+            } else {
+                led.style.background = '#ef4444';
+                led.style.boxShadow = '0 0 5px #ef4444';
+                txt.innerText = 'OFFLINE';
+                txt.style.color = '#ef4444';
+            }
+        }, 1000);
+
+        function startBot(username) {
+            console.log(`Starting bot: ${username}`);
+            socket.emit('start-bot', username);
+        }
+
+        function stopBot(username) {
+            console.log(`Stopping bot: ${username}`);
+            socket.emit('stop-bot', username);
+        }
+
+        function eatFood(username) {
+            console.log(`Commanding eat: ${username}`);
+            socket.emit('eat-food', username);
+        }
+
+        function issueCommand(val = null) {
+            const target = document.getElementById('bot-target').value;
+            const message = val || document.getElementById('cmd-input').value;
+            if (message) {
+                console.log(`Issuing command to ${target}: ${message}`);
+                socket.emit('send-chat', { username: target, message });
+                if (!val) document.getElementById('cmd-input').value = '';
+            }
+        }
+
+        function stopSelected() {
+            const t = document.getElementById('bot-target').value;
+            if (t !== 'all') stopBot(t);
+        }
+
+        function reconnectSelected() {
+            const t = document.getElementById('bot-target').value;
+            if (t !== 'all') {
+                console.log(`Reconnecting bot: ${t}`);
+                socket.emit('reconnect-bot', t);
+            }
+        }
+
+        function updateBotButton(username, status) {
+            const card = document.getElementById(`card-${username}`);
+            if (!card) return;
+
+            const btn = card.querySelector('.main-toggle');
+            const isOnline = status.includes('Online') || status.includes('Game') || status.includes('Lobby') || status.includes('Sonar');
+            const isConnecting = status.includes('Connecting') || status.includes('Wait');
+
+            if (isOnline || isConnecting) {
+                btn.innerText = 'Stop';
+                btn.className = 'btn main-toggle btn-danger';
+                btn.onclick = () => stopBot(username);
+                btn.disabled = false;
+            } else {
+                btn.innerText = 'Start';
+                btn.className = 'btn main-toggle btn-primary';
+                btn.onclick = () => startBot(username);
+                btn.disabled = globalCooldown > 0;
+            }
+        }
+
+        function createCard(acc) {
+            console.log(`Initializing card for: ${acc.username}`);
+            const div = document.createElement('div');
+            div.className = 'bot-card';
+            div.id = `card-${acc.username}`;
+            div.innerHTML = `
+                <div class="bot-header">
+                    <span class="bot-name">${acc.username}</span>
+                    <span class="status-tag status-text">${acc.status}</span>
+                </div>
+                <div style="font-size: 0.75rem; color: var(--text-dim); margin-bottom: 12px;">Uptime: <span class="uptime-val" style="color:var(--text); font-weight:bold;">---</span></div>
+                <div class="stat-row">
+                    <div class="stat-label"><span>Health</span><span class="hp-val">0/20</span></div>
+                    <div class="bar-bg"><div class="bar-fill hp-fill"></div></div>
+                </div>
+                <div class="stat-row">
+                    <div class="stat-label"><span>Food</span><span class="food-val">0/20</span></div>
+                    <div class="bar-bg"><div class="bar-fill food-fill"></div></div>
+                </div>
+                <div class="pos-text"><span class="pos-val">Awaiting position...</span></div>
+                <div class="bot-btns">
+                    <button class="btn main-toggle">Starting...</button>
+                    <button class="btn" onclick="eatFood('${acc.username}')">Eat</button>
+                </div>
+            `;
+            document.getElementById('bot-list').appendChild(div);
+
+            updateBotButton(acc.username, acc.status);
+
+            if (acc.stats && acc.stats.health !== undefined) {
+                updateStats(acc.username, acc.stats);
+            }
+        }
+
+        function updateStats(username, stats) {
+            const card = document.getElementById(`card-${username}`);
+            if (!card) return;
+            card.querySelector('.hp-fill').style.width = (stats.health / 20 * 100) + '%';
+            card.querySelector('.food-fill').style.width = (stats.food / 20 * 100) + '%';
+            card.querySelector('.pos-val').innerText = `Pos: ${stats.x || 0}, ${stats.y || 0}, ${stats.z || 0}`;
+            card.querySelector('.hp-val').innerText = `${Math.round(stats.health || 0)}/20`;
+            card.querySelector('.food-val').innerText = `${Math.round(stats.food || 0)}/20`;
+        }
+
+        socket.on('init', ({ accounts, serverIp }) => {
+            console.log('Received INIT from server');
+            document.getElementById('node-ip').innerText = serverIp;
+            const container = document.getElementById('bot-list');
+            const selector = document.getElementById('bot-target');
+
+            container.innerHTML = '';
+            while (selector.options.length > 1) selector.remove(1);
+
+            accounts.forEach(acc => {
+                botData[acc.username] = { status: acc.status, onlineSince: acc.onlineSince };
+                const opt = document.createElement('option');
+                opt.value = acc.username; opt.innerText = acc.username;
+                selector.appendChild(opt);
+                createCard(acc);
+            });
+        });
+
+        socket.on('status-update', ({ username, status, onlineSince }) => {
+            botData[username] = { status, onlineSince };
+            const card = document.getElementById(`card-${username}`);
+            if (!card) return;
+
+            card.querySelector('.status-text').innerText = status;
+            const tag = card.querySelector('.status-tag');
+            const isOnline = status.includes('Online') || status.includes('Game');
+            tag.style.color = isOnline ? 'var(--success)' : (status.includes('Offline') ? 'var(--text-dim)' : 'var(--warning)');
+
+            updateBotButton(username, status);
+        });
+
+        socket.on('stats-update', ({ username, stats }) => {
+            updateStats(username, stats);
+        });
+
+        socket.on('log', ({ username, msg, type, time }) => {
+            const term = document.getElementById('terminal');
+            const line = document.createElement('div');
+            line.className = `log-item type-${type}`;
+            line.innerHTML = `<span class="log-time">[${time}]</span><span class="log-user">${username}</span> ${msg}`;
+            term.appendChild(line);
+            term.scrollTop = term.scrollHeight;
+        });
+
+        socket.on('server-ping', (data) => {
+            const led = document.getElementById('server-led');
+            const txt = document.getElementById('server-text');
+            if (data.online) {
+                led.style.background = '#10b981';
+                led.style.boxShadow = '0 0 8px #10b981';
+                txt.innerText = 'SERVER UP';
+                txt.style.color = '#10b981';
+                logToConsole('SYSTEM', `Server online: ${data.players?.online || 0}/${data.players?.max || 0} players`, 'success');
+            } else {
+                led.style.background = '#ef4444';
+                led.style.boxShadow = '0 0 5px #ef4444';
+                txt.innerText = 'SERVER DOWN';
+                txt.style.color = '#ef4444';
+                logToConsole('SYSTEM', 'Server offline or unreachable: ' + (data.error || 'Unknown'), 'error');
+            }
+        });
+
+        function logToConsole(user, msg, type) {
+            const term = document.getElementById('terminal');
+            const line = document.createElement('div');
+            line.className = `log-item type-${type}`;
+            const t = new Date().toLocaleTimeString();
+            line.innerHTML = `<span class="log-time">[${t}]</span><span class="log-user">${user}</span> ${msg}`;
+            term.appendChild(line);
+            term.scrollTop = term.scrollHeight;
+        }
+
+        socket.on('cooldown-start', ({ duration }) => {
+            globalCooldown = duration / 1000;
+            startTimer();
+        });
+
+        socket.on('error', (msg) => {
+            console.error('SERVER_ERROR:', msg);
+            alert(`SERVER_ERROR: ${msg}`);
+        });
+
+        function startTimer() {
+            const el = document.getElementById('global-timer');
+            if (globalCooldown > 0) {
+                el.innerText = `Wait: ${Math.ceil(globalCooldown)}s`;
+                el.style.color = 'var(--warning)';
+                document.querySelectorAll('.main-toggle:not(.btn-danger)').forEach(b => b.disabled = true);
+                globalCooldown -= 0.1;
+                setTimeout(startTimer, 100);
+            } else {
+                el.innerText = 'Ready';
+                el.style.color = 'var(--success)';
+                document.querySelectorAll('.main-toggle:not(.btn-danger)').forEach(b => b.disabled = false);
+            }
+        }
+
+        document.getElementById('cmd-input').onkeypress = (e) => {
+            if (e.key === 'Enter') issueCommand();
+        };
+
+        console.log('Dashboard loaded.');
+    </script>
+</body>
+
+</html>

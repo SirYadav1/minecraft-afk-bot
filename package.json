@@ -1,0 +1,25 @@
+{
+  "name": "minecraft-afk-bot",
+  "version": "2.0.0",
+  "description": "Minecraft AFK bot with Telegram control",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "express": "^4.18.2",
+    "minecraft-data": "latest",
+    "minecraft-protocol": "latest",
+    "mineflayer": "latest",
+    "mineflayer-pathfinder": "^2.4.5",
+    "node-telegram-bot-api": "^0.64.0",
+    "prismarine-registry": "^1.7.0",
+    "socket.io": "^4.6.1"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "author": "",
+  "license": "MIT"
+}

@@ -1,0 +1,11 @@
+# whitelist - Ek line per ek username
+# Case-insensitive hai, CAPS ya small dono chalega
+# Jo naam yahan hain unka alert nahi aayega
+# YourFriendName
+Siryadav
+prince_094
+ankush_077
+.Ajjubhai94151
+bapnamukul
+Mr_IGRIS
+.Neeraj0127
