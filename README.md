@@ -1,43 +1,101 @@
-# Minecraft AFK Bot v2.2
+<div align="center">
 
-Multi-account Minecraft AFK bot with Telegram control, web dashboard, and Sonar anti-cheat bypass.
+# ⛏️ Minecraft AFK Bot
 
-## Features
+**Multi-account AFK bot with Telegram control, web dashboard & Sonar bypass**
 
-- **Multi-account** — Run multiple bots simultaneously
-- **Sonar Bypass** — Auto-bypasses Sonar verification (twerk + reconnect flow)
-- **Anti-AFK** — Random movement + head rotation (Grim-safe)
-- **Telegram Control** — Start/stop/restart bots from Telegram
-- **Web Dashboard** — Real-time stats, chat, control (token-protected)
-- **Auto-Reconnect** — Exponential backoff, handles kicks/timeouts
-- **Player Detection** — Alerts when unknown players enter range
-- **Server Ping** — Check if server is online before connecting
+[![Version](https://img.shields.io/badge/version-2.2.0-blue.svg)]()
+[![License](https://img.shields.io/badge/license-MIT-green.svg)]()
+[![Node](https://img.shields.io/badge/node-%3E%3D18-brightgreen.svg)]()
+[![Minecraft](https://img.shields.io/badge/minecraft-1.21.1-orange.svg)]()
 
-## Setup
+[Features](#-features) • [Setup](#-setup) • [Commands](#-telegram-commands) • [Dashboard](#-dashboard) • [How It Works](#-how-it-works)
 
-### 1. Install Dependencies
+</div>
+
+---
+
+## 📸 Dashboard
+
+<div align="center">
+
+```
+┌─────────────────────────────────────────────────┐
+│  🟢 MINECRAFT AFK BOT v2.2                      │
+├─────────────┬───────────────────────────────────┤
+│ 👑 prince_094 │  🟢 Online [PRIMARY]             │
+│              │  HP: 20/20  Food: 20/20          │
+│              │  Uptime: 5h 32m                  │
+│              │  Coords: 120, 64, -890           │
+├─────────────┼───────────────────────────────────┤
+│ 👤ankush_077 │  🟢 Online                        │
+│              │  HP: 18/20  Food: 15/20          │
+│              │  Uptime: 2h 10m                  │
+│              │  Coords: -340, 72, 1200          │
+├─────────────┼───────────────────────────────────┤
+│ 👤Abhay_325  │  🔴 Offline                       │
+├─────────────┴───────────────────────────────────┤
+│  📊 Server: play.soulcity.fun:35525             │
+│  📱 Telegram: ON  │  🛡️ Dashboard: Protected    │
+└─────────────────────────────────────────────────┘
+```
+
+</div>
+
+---
+
+## ✨ Features
+
+| Feature | Description |
+|---------|-------------|
+| 🤖 **Multi-Account** | Run multiple bots simultaneously with independent states |
+| 🛡️ **Sonar Bypass** | Auto-bypasses Sonar anti-cheat verification |
+| 🏃 **Anti-AFK** | Random movement + head rotation — Grim-safe |
+| 📱 **Telegram Control** | Start, stop, restart, chat — all from Telegram |
+| 🌐 **Web Dashboard** | Real-time stats, live logs, full control |
+| 🔄 **Auto-Reconnect** | Exponential backoff, handles kicks & timeouts |
+| 👀 **Player Detection** | Alerts when unknown players enter range |
+| 📡 **Server Ping** | Check server status before connecting |
+| 🔐 **Token Auth** | Dashboard protected with secret token |
+| ⚡ **Crash Protection** | Handles errors gracefully, never crashes |
+
+---
+
+## 🚀 Setup
+
+### 1. Clone & Install
 
 ```bash
+git clone https://github.com/SirYadav1/minecraft-afk-bot.git
+cd minecraft-afk-bot
 npm install
 ```
 
-### 2. Configure .env
+### 2. Configure Environment
 
 ```bash
 cp .env.example .env
 ```
 
-Edit `.env`:
+Edit `.env` with your values:
 
 ```env
+# ─── Server ───
 SERVER_IP=play.yourserver.com
 SERVER_PORT=25565
+MC_VERSION=1.21.1
+
+# ─── Dashboard ───
 DASHBOARD_PORT=20289
 DASHBOARD_TOKEN=your-secret-token
-TELEGRAM_BOT_TOKEN=your-bot-token
-TELEGRAM_CHAT_ID=your-chat-id
+
+# ─── Telegram ───
+TELEGRAM_BOT_TOKEN=123456:ABC-DEF...
+TELEGRAM_CHAT_ID=-1001234567890
 ADMIN_IDS=123456789,987654321
-MC_VERSION=1.21.1
+
+# ─── Settings ───
+START_COOLDOWN=45000
 ```
 
 ### 3. Add Accounts
@@ -48,57 +106,118 @@ Edit `accounts.json`:
 {
   "accounts": [
     {
-      "username": "bot1",
-      "password": "yourpassword",
+      "username": "bot_username",
+      "password": "your_password",
       "status": "active"
     }
   ]
 }
 ```
 
-### 4. Run
+### 4. Start
 
 ```bash
 node index.js
 ```
 
-## Telegram Commands
+---
+
+## 📱 Telegram Commands
 
 | Command | Description |
-|---|---|
-| `/status` | All bot status |
-| `/on <user\|all>` | Start bot(s) |
-| `/off <user>` | Stop bot |
-| `/restart <user\|all>` | Restart bot(s) |
-| `/send <user> <msg>` | Send chat message |
-| `/all <cmd>` | Broadcast to all bots |
-| `/<user> <cmd>` | Send command to specific bot |
-| `/ping` | Check server status |
-| `/reload` | Reload accounts from file |
-| `/offd` `/ond` | Toggle dashboard |
+|---------|-------------|
+| `/status` | 📊 View all bot status |
+| `/on <user\|all>` | 🚀 Start bot(s) |
+| `/off <user>` | ⏹️ Stop bot |
+| `/restart <user\|all>` | 🔄 Restart bot(s) |
+| `/send <user> <msg>` | 💬 Send chat message |
+| `/all <cmd>` | 📢 Broadcast command to all |
+| `/<user> <cmd>` | 🎯 Send command to specific bot |
+| `/ping` | 📡 Check server status |
+| `/reload` | 🔄 Reload accounts file |
+| `/offd` | 📴 Disable dashboard |
+| `/ond` | 🌐 Enable dashboard |
 
-## Dashboard
+---
 
-Open `http://localhost:20289?token=YOUR_TOKEN` in browser.
+## 🌐 Dashboard
 
-- Start/stop/reconnect bots
-- Send chat messages
-- View real-time health, food, coords
-- Server ping
-- Live log feed
-
-## How It Works
+Open in browser:
 
 ```
-Join Server → Sonar Bypass (twerk 15s) → Kicked → Reconnect → /login → Anti-AFK
+http://localhost:20289?token=YOUR_DASHBOARD_TOKEN
 ```
 
-1. Bot joins in offline/cracked mode
-2. Twerks + swings arm to bypass Sonar verification
-3. Gets kicked (Sonar verified), reconnects
-4. Sends `/login` command
-5. Starts anti-AFK (random moves every 5 min + head rotation)
+**Features:**
+- ✅ Start / Stop / Reconnect bots
+- ✅ Send chat messages
+- ✅ View health, food, coordinates
+- ✅ Server ping
+- ✅ Real-time log feed
+- ✅ Mobile responsive
 
-## License
+---
 
-MIT
+## ⚙️ How It Works
+
+```
+┌──────────┐    ┌──────────────┐    ┌──────────┐    ┌─────────┐    ┌──────────┐
+│  Join    │───▶│ Sonar Bypass │───▶│  Kicked  │───▶│ Rejoin  │───▶│ /login   │
+│  Server  │    │ (twerk 15s)  │    │ (verify) │    │         │    │          │
+└──────────┘    └──────────────┘    └──────────┘    └─────────┘    └────┬─────┘
+                                                                        │
+                                                                        ▼
+                                                                  ┌──────────┐
+                                                                  │ Anti-AFK │
+                                                                  │ (active) │
+                                                                  └──────────┘
+```
+
+1. **Join** — Bot connects in offline/cracked mode
+2. **Sonar Bypass** — Twerks + swings arm for 15 seconds
+3. **Kicked** — Server verifies and kicks (Sonar complete)
+4. **Rejoin** — Bot reconnects automatically
+5. **Login** — Sends `/login` command
+6. **Anti-AFK** — Random moves every 5 min + head rotation
+
+---
+
+## 🛡️ Security
+
+- ✅ `.env` for secrets (never committed)
+- ✅ `.gitignore` protects accounts, config, logs
+- ✅ Dashboard token authentication
+- ✅ Telegram admin ID verification
+
+---
+
+## 📁 Project Structure
+
+```
+minecraft-afk-bot/
+├── index.js           # Main bot logic
+├── index.html         # Dashboard UI
+├── accounts.json      # Bot accounts (gitignored)
+├── .env               # Secrets (gitignored)
+├── .env.example       # Environment template
+├── .gitignore         # Git ignore rules
+├── whitelist.txt      # Player whitelist
+├── package.json       # Dependencies
+└── README.md          # This file
+```
+
+---
+
+## 📄 License
+
+[MIT](LICENSE) © [SirYadav1](https://github.com/SirYadav1)
+
+---
+
+<div align="center">
+
+**Made with ❤️ for Minecraft AFK farming**
+
+[⬆ Back to Top](#-minecraft-afk-bot)
+
+</div>
