@@ -1,3 +1,4 @@
+require('dotenv').config();
 const mineflayer = require('mineflayer');
 const fs = require('fs');
 const path = require('path');
@@ -8,36 +9,54 @@ const TelegramBot = require('node-telegram-bot-api');
 const mc = require('minecraft-protocol');
 
 // ─────────────────────────────────────────
-//  LOAD CONFIG (from config.json)
+//  CONFIG (from .env)
 // ─────────────────────────────────────────
-let CONFIG = {};
-try {
-    const configRaw = fs.readFileSync(path.join(__dirname, 'config.json'), 'utf8');
-    CONFIG = JSON.parse(configRaw);
-    console.log('[CONFIG] Loaded from config.json');
-} catch (e) {
-    console.log('[CONFIG] Failed to load config.json, using defaults:', e.message);
-}
-
-const serverIp = CONFIG.SERVER_IP || 'play.soulcity.fun';
-const serverPort = CONFIG.SERVER_PORT || 25565;
-const dashboardPort = CONFIG.DASHBOARD_PORT || 20289;
-const startCooldown = CONFIG.START_COOLDOWN || 45000;
+const serverIp = process.env.SERVER_IP || 'play.soulcity.fun';
+const serverPort = parseInt(process.env.SERVER_PORT) || 35525;
+const dashboardPort = parseInt(process.env.DASHBOARD_PORT) || 20289;
+const dashboardToken = process.env.DASHBOARD_TOKEN || '';
+const startCooldown = parseInt(process.env.START_COOLDOWN) || 45000;
+const mcVersion = process.env.MC_VERSION || '1.21.1';
 const accountsPath = path.join(__dirname, 'accounts.json');
 
-const NORMAL_RECONNECT = 8000;    // 8s normal reconnect
-const FAST_RECONNECT = 5000;      // 5s fast reconnect
-const SLOW_RECONNECT = 60000;   // 60s for "too fast"
-const SONAR_TIMEOUT = 15000;      // 15s wait for Sonar bypass
-const MAX_RECONNECT_DELAY = 300000; // 5min max backoff
+const NORMAL_RECONNECT = 8000;
+const FAST_RECONNECT = 5000;
+const SLOW_RECONNECT = 60000;
+const SONAR_TIMEOUT = 15000;
+const MAX_RECONNECT_DELAY = 300000;
 
 // ─────────────────────────────────────────
 //  TELEGRAM
 // ─────────────────────────────────────────
-const TELEGRAM_BOT_TOKEN = CONFIG.TELEGRAM_BOT_TOKEN || '';
-const TELEGRAM_CHAT_ID = CONFIG.TELEGRAM_CHAT_ID || '';
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
+const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID || '';
 const USE_TELEGRAM = !!TELEGRAM_BOT_TOKEN;
-const ADMIN_IDS = CONFIG.ADMIN_IDS || [];
+const ADMIN_IDS = process.env.ADMIN_IDS
+    ? process.env.ADMIN_IDS.split(',').map(id => parseInt(id.trim())).filter(Boolean)
+    : [];
+
+// ─────────────────────────────────────────
+//  CACHED ACCOUNTS (read once, not every call)
+// ─────────────────────────────────────────
+let cachedAccounts = null;
+
+function loadAccounts() {
+    if (cachedAccounts) return cachedAccounts;
+    try {
+        if (fs.existsSync(accountsPath)) {
+            cachedAccounts = JSON.parse(fs.readFileSync(accountsPath, 'utf8')).accounts || [];
+            return cachedAccounts;
+        }
+    } catch (e) {
+        console.log('Failed to load accounts:', e.message);
+    }
+    return [];
+}
+
+function reloadAccounts() {
+    cachedAccounts = null;
+    return loadAccounts();
+}
 
 // ─────────────────────────────────────────
 //  DASHBOARD
@@ -51,10 +70,23 @@ function initDashboard() {
     server = http.createServer(app);
     io = socketIo(server);
     app.disable('x-powered-by');
+
+    // Dashboard auth middleware (skip if no token configured)
+    if (dashboardToken) {
+        app.use((req, res, next) => {
+            const token = req.query.token || req.headers['x-dashboard-token'];
+            if (token === dashboardToken) return next();
+            if (req.path === '/' || req.path.endsWith('.html')) {
+                return res.status(401).send('Unauthorized — add ?token=YOUR_TOKEN to URL');
+            }
+            next();
+        });
+    }
+
     app.use(express.static(__dirname));
     setupSocketHandlers();
     server.listen(dashboardPort, '0.0.0.0', () => {
-        console.log('Dashboard: http://localhost:' + dashboardPort);
+        console.log('Dashboard: http://localhost:' + dashboardPort + (dashboardToken ? ' (token protected)' : ''));
     });
 }
 
@@ -207,7 +239,6 @@ function startAntiAfk(u) {
     bot.physicsEnabled = true;
     let yaw = bot.entity ? bot.entity.yaw : 0;
 
-    // Slow head rotation every 30s
     state.afkInterval = setInterval(() => {
         if (!bots[u] || !bot.entity) return;
         try {
@@ -216,7 +247,6 @@ function startAntiAfk(u) {
         } catch (e) { }
     }, 30000);
 
-    // Random move every 5 mins, first after 1-2 mins
     const firstMove = 60000 + Math.floor(Math.random() * 60000);
     setTimeout(() => {
         if (!bots[u]) return;
@@ -249,33 +279,22 @@ async function eatFood(u) {
         await bot.equip(foods[0], 'hand');
         bot.activateItem();
         await new Promise(r => setTimeout(r, 3000));
+        bot.deactivateItem();
         log(u, 'Ate ' + foods[0].name, 'success');
     } catch (e) { log(u, 'Eat failed', 'error'); }
 }
 
-function loadAccounts() {
-    try {
-        if (fs.existsSync(accountsPath))
-            return JSON.parse(fs.readFileSync(accountsPath)).accounts || [];
-    } catch (e) { console.log('Failed to load accounts:', e.message); }
-    return [];
-}
-
 // ─────────────────────────────────────────
-//  PING SERVER (check if online before connecting)
+//  PING SERVER
 // ─────────────────────────────────────────
 function pingServer(callback) {
-    mc.ping({ host: serverIp, port: serverPort, version: '1.21.1', timeout: 10000 }, (err, result) => {
-        if (err) {
-            callback(err, null);
-        } else {
-            callback(null, result);
-        }
+    mc.ping({ host: serverIp, port: serverPort, version: mcVersion, timeout: 10000 }, (err, result) => {
+        callback(err, result);
     });
 }
 
 // ─────────────────────────────────────────
-//  CREATE BOT  —  Sonar Verification Flow
+//  CREATE BOT — Sonar Verification Flow
 // ─────────────────────────────────────────
 function createBot(acc, attempt = 1) {
     const u = acc.username;
@@ -303,8 +322,8 @@ function createBot(acc, attempt = 1) {
         host: serverIp,
         port: serverPort,
         username: u,
-        version: '1.21.1',
-        auth: 'offline',          // <-- CRACKED/OFFLINE MODE (no Mojang auth needed)
+        version: mcVersion,
+        auth: 'offline',
         hideErrors: false,
         brand: 'vanilla',
         checkTimeoutInterval: 60000
@@ -320,35 +339,26 @@ function createBot(acc, attempt = 1) {
         electPrimaryBot();
 
         if (!botStates[u].sonarVerified) {
-            // FIRST SPAWN: Bypass Sonar verification by twerking
             log(u, '⏳ Bypassing Sonar (Twerking)...', 'info');
             updateStatus(u, 'Sonar Bypassing' + (isPrimary(u) ? ' [PRIMARY]' : ''));
             botStates[u].onlineSince = Date.now();
 
-            // SONAR BYPASS: Advanced Movement (Twerk + Look + Swing)
             let yaw = bot.entity ? bot.entity.yaw : 0;
             let pitch = bot.entity ? bot.entity.pitch : 0;
             botStates[u].sonarBypassInterval = setInterval(() => {
                 if (!bots[u] || !bot.entity) return;
                 try {
-                    // Twerk
                     bot.setControlState('sneak', true);
-                    
-                    // Swing arm
                     bot.swingArm('right');
-
-                    // Look around slightly
                     yaw += (Math.random() - 0.5) * 0.5;
                     pitch += (Math.random() - 0.5) * 0.5;
                     bot.look(yaw, pitch, false);
-
                     setTimeout(() => {
                         if (bots[u]) bot.setControlState('sneak', false);
                     }, 200);
                 } catch (e) {}
             }, 500);
 
-            // Timeout: if Sonar doesn't kick in SONAR_TIMEOUT, assume verified and send /login
             sonarTimer = setTimeout(() => {
                 if (!bots[u]) return;
                 log(u, '⚠️ Sonar timeout — assuming verified, sending /login...', 'warning');
@@ -361,7 +371,6 @@ function createBot(acc, attempt = 1) {
                 log(u, '⌨️ Sent /login', 'info');
             }, SONAR_TIMEOUT);
         } else {
-            // VERIFIED: Send /login directly
             log(u, '✅ Spawned (Sonar verified)' + (isPrimary(u) ? ' [PRIMARY]' : ''), 'success');
             updateStatus(u, 'Online' + (isPrimary(u) ? ' [PRIMARY]' : ''));
             botStates[u].onlineSince = Date.now();
@@ -373,7 +382,6 @@ function createBot(acc, attempt = 1) {
             }, 1500);
         }
 
-        // Stats update loop
         statTimer = setInterval(() => {
             if (!bot.entity) return;
             updateStats(u, {
@@ -394,7 +402,6 @@ function createBot(acc, attempt = 1) {
         log(u, txt, 'info');
         const n = normalizeText(txt);
 
-        // Login success → start Anti-AFK
         if (n.includes('successfully logged in') ||
             n.includes('your login session has been continued') ||
             n.includes('you are already logged')) {
@@ -404,7 +411,6 @@ function createBot(acc, attempt = 1) {
             setTimeout(() => { if (bots[u]) startAntiAfk(u); }, 3000);
         }
 
-        // Login prompt -> send login if we were in bypass mode
         if (n.includes('please login') || n.includes('/login') || n.includes('register')) {
             if (!botStates[u].sonarVerified) {
                 log(u, '✅ Sonar verification bypassed! Sending login...', 'success');
@@ -420,13 +426,11 @@ function createBot(acc, attempt = 1) {
             }
         }
 
-        // "Logging in too fast" → slow reconnect
         if (n.includes('logging in too fast') || n.includes('too fast')) {
             reconnectCooldown = SLOW_RECONNECT;
             log(u, '⚠️ Logging too fast! Will wait 60s before rejoin.', 'warning');
         }
 
-        // Sonar verification message detection
         if (n.includes('verification') || n.includes('captcha') || n.includes('complete the')) {
             log(u, '🔍 Detected verification/captcha prompt', 'warning');
         }
@@ -438,12 +442,11 @@ function createBot(acc, attempt = 1) {
         log(u, 'Error: ' + msg, 'error');
         botStates[u].lastError = msg;
 
-        // Detect specific error types
         if (msg.includes('ECONNREFUSED')) {
-            log(u, '🔴 Server refused connection. Server might be offline or wrong port.', 'error');
+            log(u, '🔴 Server refused connection.', 'error');
             reconnectCooldown = Math.min(startCooldown * Math.pow(1.5, botStates[u].reconnectAttempts), MAX_RECONNECT_DELAY);
         } else if (msg.includes('ETIMEDOUT') || msg.includes('timeout')) {
-            log(u, '⏱️ Connection timed out. Server may be lagging or blocking.', 'warning');
+            log(u, '⏱️ Connection timed out.', 'warning');
             reconnectCooldown = Math.min(30000 * Math.pow(1.5, botStates[u].reconnectAttempts), MAX_RECONNECT_DELAY);
         } else if (msg.includes('ECONNRESET')) {
             log(u, '🔌 Connection reset by server.', 'warning');
@@ -459,7 +462,6 @@ function createBot(acc, attempt = 1) {
 
         const rLow = reason.toLowerCase();
 
-        // First kick = Sonar verification complete
         if (!botStates[u].sonarVerified) {
             botStates[u].sonarVerified = true;
             if (botStates[u].sonarBypassInterval) {
@@ -468,23 +470,17 @@ function createBot(acc, attempt = 1) {
             }
             reconnectCooldown = NORMAL_RECONNECT;
             log(u, '✅ Sonar verification kick received! Reconnecting to login...', 'success');
-
-            // "logging too fast" kick
         } else if (rLow.includes('logging in too fast') || rLow.includes('too fast')) {
             reconnectCooldown = SLOW_RECONNECT;
             log(u, '⏳ Too fast kick — waiting 60s', 'warning');
-
-            // Limbo / internal error → fast reconnect
         } else if (rLow.includes('internal') || rLow.includes('limbo')) {
             reconnectCooldown = FAST_RECONNECT;
-
-            // Normal kick → standard reconnect
         } else {
             reconnectCooldown = NORMAL_RECONNECT;
         }
     });
 
-    // ── END → Reconnect logic ──
+    // ── END → Reconnect ──
     bot.on('end', reason => {
         if (statTimer) clearInterval(statTimer);
         if (sonarTimer) { clearTimeout(sonarTimer); sonarTimer = null; }
@@ -502,9 +498,8 @@ function createBot(acc, attempt = 1) {
 
         if (botStates[u] && !botStates[u].manual) {
             const cooldown = reconnectCooldown;
-            reconnectCooldown = NORMAL_RECONNECT; // reset for next time
+            reconnectCooldown = NORMAL_RECONNECT;
 
-            // Exponential backoff for repeated failures
             if (botStates[u].lastError && botStates[u].lastError.includes('ECONNREFUSED')) {
                 botStates[u].reconnectAttempts++;
             } else {
@@ -626,12 +621,18 @@ function handleTelegramCommand(msg) {
         return;
     }
 
+    if (cmd === '/reload') {
+        reloadAccounts();
+        telegramBot.sendMessage(chatId, '🔄 Accounts reloaded (' + loadAccounts().length + ')');
+        return;
+    }
+
     if (cmd === '/offd') { dashboardEnabled = false; telegramBot.sendMessage(chatId, '📴 Dashboard OFF'); return; }
     if (cmd === '/ond') { dashboardEnabled = true; telegramBot.sendMessage(chatId, '🌐 Dashboard ON'); return; }
     if (cmd === '/ping') {
         pingServer((err, result) => {
             if (err) {
-                telegramBot.sendMessage(chatId, '❌ Server ping failed: ' + err.message);
+                telegramBot.sendMessage(chatId, '❌ Ping failed: ' + err.message);
             } else {
                 const motd = result.description?.text || result.description || 'N/A';
                 telegramBot.sendMessage(chatId, `✅ Server Online\nPlayers: ${result.players?.online || 0}/${result.players?.max || 0}\nVersion: ${result.version?.name || 'N/A'}\nMOTD: ${motd}`);
@@ -640,7 +641,6 @@ function handleTelegramCommand(msg) {
         return;
     }
 
-    // /<username> <msg>
     const u = cmd.substring(1);
     if (bots[u] && arg) {
         if (arg === '/eat') { eatFood(u); telegramBot.sendMessage(chatId, '🍖 Eating...'); }
@@ -650,17 +650,27 @@ function handleTelegramCommand(msg) {
 
     if (cmd !== '/start') {
         telegramBot.sendMessage(chatId,
-            '❓ Commands:\n/status\n/on <user|all>\n/off <user>\n/restart <user|all>\n/send <user> <msg>\n/all <cmd>\n/<user> <cmd>\n/ping\n/offd /ond'
+            '❓ Commands:\n/status\n/on <user|all>\n/off <user>\n/restart <user|all>\n/send <user> <msg>\n/all <cmd>\n/<user> <cmd>\n/ping\n/reload\n/offd /ond'
         );
     }
 }
 
 // ─────────────────────────────────────────
-//  SOCKET HANDLERS (Dashboard — No Auth)
+//  SOCKET HANDLERS (Dashboard)
 // ─────────────────────────────────────────
 function setupSocketHandlers() {
     if (!io) return;
     io.on('connection', s => {
+        // Socket auth (if dashboard token is set)
+        if (dashboardToken) {
+            const token = s.handshake?.auth?.token || s.handshake?.query?.token;
+            if (token !== dashboardToken) {
+                s.emit('auth_error', { message: 'Invalid token' });
+                s.disconnect();
+                return;
+            }
+        }
+
         const accs = loadAccounts();
         s.emit('init', {
             accounts: accs.map(a => ({
@@ -768,44 +778,38 @@ process.on('SIGTERM', () => shutdown('SIGTERM'));
 const loadedAccounts = loadAccounts();
 
 console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-console.log('       MINECRAFT AFK BOT v2.1');
+console.log('       MINECRAFT AFK BOT v2.2');
 console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 console.log('Server   :', serverIp + ':' + serverPort);
 console.log('Accounts :', loadedAccounts.length);
-console.log('Version  : 1.21.1 (Offline/Cracked mode)');
+console.log('Version  :', mcVersion, '(Offline/Cracked)');
+console.log('Dashboard:', dashboardToken ? 'Token protected' : 'OPEN (no auth)');
+console.log('Telegram :', USE_TELEGRAM ? 'ON' : 'OFF');
 console.log('Flow     : join → Sonar verify → reconnect → /login → Anti-AFK');
 console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
 
-// Ping server first to check if it's online
 pingServer((err, result) => {
     if (err) {
         console.log('⚠️  Server ping failed:', err.message);
-        console.log('   The server may be offline, wrong port, or blocking connections.');
-        console.log('   Bot will still attempt to connect with retry logic.\n');
         sendTg('[SYSTEM] ⚠️ Server unreachable: ' + err.message, 'warning');
     } else {
         const motd = result.description?.text || result.description || 'N/A';
-        console.log('✅ Server is ONLINE!');
-        console.log('   Players:', (result.players?.online || 0) + '/' + (result.players?.max || 0));
-        console.log('   Version:', result.version?.name || 'N/A');
+        console.log('✅ Server ONLINE — Players:', (result.players?.online || 0) + '/' + (result.players?.max || 0));
         console.log('   MOTD:', motd);
-        console.log('');
         sendTg('[SYSTEM] ✅ Server online: ' + (result.players?.online || 0) + ' players', 'success');
     }
 
     initDashboard();
 
-    // Start all bots with small delay between each
     loadedAccounts.forEach((acc, i) => {
         setTimeout(() => createBot(acc), 2000 + i * 3000);
     });
 });
 
-// Startup Telegram message
 setTimeout(() => {
     if (!telegramBot) return;
     telegramBot.sendMessage(TELEGRAM_CHAT_ID,
-        '🟢 *Bot Started*\n' +
+        '🟢 *Bot Started v2.2*\n' +
         '🖥️ Server: ' + serverIp + ':' + serverPort + '\n' +
         '👤 Accounts: ' + loadedAccounts.length + '\n' +
         '📊 Dashboard: port ' + dashboardPort,
