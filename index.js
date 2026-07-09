@@ -127,7 +127,7 @@ function loadStaffPasswords() {
 }
 
 // Telegram
-const TELEGRAM_BOT_TOKEN = '8036282088:AAFEwBCykq80BEKiHDd13NNQYznFtRwUOx4';
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || 'REPLACE_WITH_YOUR_TELEGRAM_BOT_TOKEN';
 const TELEGRAM_CHAT_ID = '-1003570290445';
 const USE_TELEGRAM = true;
 
