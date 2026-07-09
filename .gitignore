@@ -5,6 +5,8 @@ logs/
 # Credentials — never commit
 accounts.json
 staff_passwords.json
+config.json
+whitelist.txt
 .env
 *.env
 .DS_Store
