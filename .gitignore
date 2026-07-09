@@ -1,0 +1,10 @@
+node_modules/
+logs/
+*.log
+
+# Credentials — never commit
+accounts.json
+staff_passwords.json
+.env
+*.env
+.DS_Store

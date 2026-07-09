@@ -1,0 +1,1146 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>AFK Bot Console</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        :root {
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --primary-light: #818cf8;
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --info: #3b82f6;
+        }
+
+        [data-theme="dark"] {
+            --bg-primary: #0f172a;
+            --bg-secondary: #1e293b;
+            --bg-tertiary: #334155;
+            --text-primary: #f1f5f9;
+            --text-secondary: #cbd5e1;
+            --text-muted: #94a3b8;
+            --border: rgba(255, 255, 255, 0.1);
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+            --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.4);
+            --terminal-bg: #0f172a;
+        }
+
+        [data-theme="light"] {
+            --bg-primary: #f8fafc;
+            --bg-secondary: #ffffff;
+            --bg-tertiary: #f1f5f9;
+            --text-primary: #0f172a;
+            --text-secondary: #334155;
+            --text-muted: #64748b;
+            --border: rgba(0, 0, 0, 0.1);
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+            --terminal-bg: #f8fafc;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            transition: all 0.3s ease;
+            overflow-x: hidden;
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+
+        /* Login Overlay */
+        .login-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.98);
+            backdrop-filter: blur(12px);
+            z-index: 10000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.5s ease;
+            padding: 1rem;
+        }
+
+        .login-card {
+            background: var(--bg-secondary);
+            border-radius: 24px;
+            padding: 2rem 1.5rem;
+            width: 100%;
+            max-width: 350px;
+            text-align: center;
+            border: 1px solid var(--border);
+            animation: slideUp 0.5s ease;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .login-icon {
+            font-size: 3.5rem;
+            color: var(--primary);
+            margin-bottom: 1rem;
+        }
+
+        .login-card h2 {
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .login-card p {
+            color: var(--text-muted);
+            font-size: 0.875rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .login-input {
+            width: 100%;
+            padding: 0.875rem;
+            background: var(--bg-tertiary);
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            color: var(--text-primary);
+            font-size: 1rem;
+            margin-bottom: 1rem;
+            transition: all 0.3s;
+        }
+
+        .login-input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        }
+
+        .login-btn {
+            width: 100%;
+            padding: 0.875rem;
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .login-btn:active {
+            transform: scale(0.98);
+        }
+
+        /* Main App */
+        .app-container {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Header */
+        .header {
+            position: sticky;
+            top: 0;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            padding: 0.75rem 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
+            backdrop-filter: blur(10px);
+            background: rgba(var(--bg-secondary-rgb), 0.95);
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 1.25rem;
+            font-weight: 700;
+        }
+
+        .logo i {
+            color: var(--primary);
+            font-size: 1.5rem;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .icon-btn {
+            padding: 0.5rem;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+        }
+
+        .icon-btn:active {
+            transform: scale(0.95);
+        }
+
+        /* Staff Dashboard Button - Special Style */
+        .staff-btn {
+            background: linear-gradient(135deg, var(--danger), #dc2626);
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 0.875rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            height: 40px;
+        }
+
+        .staff-btn i {
+            font-size: 1rem;
+        }
+
+        .staff-btn:active {
+            transform: scale(0.95);
+        }
+
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 0.875rem;
+            background: var(--bg-tertiary);
+            border-radius: 100px;
+            font-size: 0.875rem;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--danger);
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.online {
+            background: var(--success);
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
+        }
+
+        /* Stats Bar */
+        .stats-bar {
+            background: var(--bg-secondary);
+            padding: 0.75rem 1rem;
+            display: flex;
+            justify-content: space-around;
+            gap: 0.5rem;
+            border-bottom: 1px solid var(--border);
+            flex-wrap: wrap;
+        }
+
+        .stat-item {
+            text-align: center;
+            flex: 1;
+            min-width: 70px;
+        }
+
+        .stat-label {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            margin-bottom: 0.25rem;
+        }
+
+        .stat-value {
+            font-size: 1rem;
+            font-weight: 700;
+        }
+
+        /* Bot Cards - Horizontal Scroll on Mobile */
+        .bots-section {
+            padding: 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .section-title {
+            font-size: 0.875rem;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .bots-scroll {
+            display: flex;
+            gap: 0.75rem;
+            overflow-x: auto;
+            scroll-snap-type: x mandatory;
+            padding-bottom: 0.5rem;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .bots-scroll::-webkit-scrollbar {
+            height: 4px;
+        }
+
+        .bots-scroll::-webkit-scrollbar-track {
+            background: var(--bg-tertiary);
+            border-radius: 4px;
+        }
+
+        .bots-scroll::-webkit-scrollbar-thumb {
+            background: var(--primary);
+            border-radius: 4px;
+        }
+
+        .bot-card {
+            min-width: 280px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 1rem;
+            scroll-snap-align: start;
+            transition: all 0.2s;
+        }
+
+        .bot-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.75rem;
+        }
+
+        .bot-name {
+            font-weight: 700;
+            font-size: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .bot-status {
+            padding: 0.25rem 0.5rem;
+            border-radius: 100px;
+            font-size: 0.7rem;
+            font-weight: 600;
+        }
+
+        .status-online {
+            background: rgba(16, 185, 129, 0.2);
+            color: var(--success);
+        }
+
+        .status-offline {
+            background: rgba(239, 68, 68, 0.2);
+            color: var(--danger);
+        }
+
+        .bot-stats {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 0.75rem;
+            padding: 0.5rem 0;
+            border-top: 1px solid var(--border);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .bot-stat {
+            flex: 1;
+            text-align: center;
+        }
+
+        .bot-stat-value {
+            font-size: 0.875rem;
+            font-weight: 700;
+        }
+
+        .bot-stat-label {
+            font-size: 0.6rem;
+            color: var(--text-muted);
+        }
+
+        .health-bar {
+            background: var(--bg-tertiary);
+            border-radius: 4px;
+            height: 4px;
+            overflow: hidden;
+            margin-top: 0.25rem;
+        }
+
+        .health-fill {
+            background: var(--success);
+            height: 100%;
+            transition: width 0.3s;
+        }
+
+        .bot-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .action-btn {
+            flex: 1;
+            padding: 0.5rem;
+            border: none;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .action-btn:active {
+            transform: scale(0.97);
+        }
+
+        .btn-start {
+            background: var(--success);
+            color: white;
+        }
+
+        .btn-stop {
+            background: var(--danger);
+            color: white;
+        }
+
+        .btn-restart {
+            background: var(--warning);
+            color: white;
+        }
+
+        /* Command Section */
+        .command-section {
+            padding: 1rem;
+            border-bottom: 1px solid var(--border);
+            background: var(--bg-secondary);
+        }
+
+        .quick-commands {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            margin-bottom: 1rem;
+        }
+
+        .quick-cmd {
+            padding: 0.5rem 1rem;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 100px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .quick-cmd:active {
+            background: var(--primary);
+            color: white;
+            transform: scale(0.95);
+        }
+
+        .command-input-group {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 0.75rem;
+            flex-wrap: wrap;
+        }
+
+        .bot-select {
+            padding: 0.75rem;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            color: var(--text-primary);
+            font-size: 0.875rem;
+            flex: 1;
+            min-width: 120px;
+        }
+
+        .command-input {
+            flex: 2;
+            padding: 0.75rem;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            color: var(--text-primary);
+            font-size: 0.875rem;
+            min-width: 150px;
+        }
+
+        .command-input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        .send-btn {
+            padding: 0.75rem 1.25rem;
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .send-btn:active {
+            transform: scale(0.97);
+        }
+
+        /* Console Section */
+        .console-section {
+            flex: 1;
+            padding: 1rem;
+            background: var(--terminal-bg);
+            min-height: 300px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .console-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.75rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .console-title {
+            font-size: 0.875rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .clear-btn {
+            padding: 0.25rem 0.75rem;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-secondary);
+            font-size: 0.7rem;
+            cursor: pointer;
+        }
+
+        .terminal {
+            flex: 1;
+            font-family: 'Courier New', monospace;
+            font-size: 0.75rem;
+            overflow-y: auto;
+            height: calc(100vh - 480px);
+            min-height: 250px;
+        }
+
+        .log-line {
+            padding: 0.3rem 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            word-break: break-word;
+        }
+
+        .log-time {
+            color: var(--text-muted);
+            margin-right: 0.5rem;
+        }
+
+        .log-user {
+            color: var(--primary-light);
+            font-weight: 600;
+            margin-right: 0.5rem;
+        }
+
+        .log-msg {
+            color: var(--text-secondary);
+        }
+
+        /* Toast Notification */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            padding: 0.75rem 1.25rem;
+            border-radius: 100px;
+            z-index: 10001;
+            animation: slideUp 0.3s ease;
+            font-size: 0.875rem;
+            border: 1px solid var(--border);
+            white-space: nowrap;
+            max-width: 90%;
+            white-space: normal;
+            text-align: center;
+        }
+
+        /* Loading */
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-muted);
+        }
+
+        /* Responsive */
+        @media (max-width: 600px) {
+            .header {
+                flex-direction: column;
+                gap: 0.75rem;
+            }
+
+            .header-actions {
+                width: 100%;
+                justify-content: space-between;
+            }
+
+            .staff-btn {
+                flex: 1;
+                justify-content: center;
+            }
+
+            .stats-bar {
+                gap: 0.25rem;
+            }
+
+            .stat-item {
+                min-width: 60px;
+            }
+
+            .bot-card {
+                min-width: 260px;
+            }
+
+            .quick-cmd {
+                font-size: 0.7rem;
+                padding: 0.4rem 0.8rem;
+            }
+
+            .command-input-group {
+                flex-direction: column;
+            }
+
+            .bot-select,
+            .command-input,
+            .send-btn {
+                width: 100%;
+            }
+
+            .terminal {
+                height: calc(100vh - 560px);
+                font-size: 0.7rem;
+            }
+        }
+
+        @media (max-width: 380px) {
+            .header-actions {
+                flex-wrap: wrap;
+            }
+
+            .status-badge {
+                order: 1;
+            }
+
+            .staff-btn {
+                order: 2;
+            }
+
+            .icon-btn {
+                order: 3;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Login Overlay -->
+    <div id="loginOverlay" class="login-overlay">
+        <div class="login-card">
+            <div class="login-icon">
+                <i class="fas fa-terminal"></i>
+            </div>
+            <h2>AFK Bot Console</h2>
+            <p>Enter credentials to access the control panel</p>
+            <input type="password" id="loginPassword" class="login-input" placeholder="Password"
+                onkeypress="handleLoginKeypress(event)">
+            <button class="login-btn" onclick="attemptLogin()">
+                <i class="fas fa-lock"></i> Login
+            </button>
+            <div id="loginError" style="color: var(--danger); margin-top: 1rem; font-size: 0.75rem; display: none;">
+            </div>
+        </div>
+    </div>
+
+    <!-- Main App -->
+    <div class="app-container" style="display: none;" id="appContainer">
+        <!-- Header -->
+        <div class="header">
+            <div class="logo">
+                <i class="fas fa-terminal"></i>
+                <span>AFK Console</span>
+            </div>
+            <div class="header-actions">
+                <!-- Staff Dashboard Button -->
+                <button class="staff-btn" onclick="goToStaffDashboard()">
+                    <i class="fas fa-gavel"></i>
+                    <span>Staff Panel</span>
+                </button>
+                <div class="status-badge" onclick="refreshData()">
+                    <div class="status-dot" id="statusDot"></div>
+                    <span id="statusText">Offline</span>
+                </div>
+                <div class="icon-btn" onclick="toggleTheme()">
+                    <i class="fas fa-moon" id="themeIcon"></i>
+                </div>
+                <div class="icon-btn" onclick="logout()">
+                    <i class="fas fa-sign-out-alt"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stats Bar -->
+        <div class="stats-bar">
+            <div class="stat-item">
+                <div class="stat-label">Total Bots</div>
+                <div class="stat-value" id="totalBots">0</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">Online</div>
+                <div class="stat-value" id="onlineBots">0</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">Offline</div>
+                <div class="stat-value" id="offlineBots">0</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">Server</div>
+                <div class="stat-value" id="serverStatus">--</div>
+            </div>
+        </div>
+
+        <!-- Bots Section -->
+        <div class="bots-section">
+            <div class="section-title">
+                <i class="fas fa-robot"></i>
+                <span>Bot Management</span>
+                <span style="font-size: 0.7rem; color: var(--text-muted);">(Swipe →)</span>
+            </div>
+            <div class="bots-scroll" id="botsScroll">
+                <div class="loading">Loading bots...</div>
+            </div>
+        </div>
+
+        <!-- Command Section -->
+        <div class="command-section">
+            <div class="section-title">
+                <i class="fas fa-keyboard"></i>
+                <span>Quick Commands</span>
+            </div>
+            <div class="quick-commands" id="quickCommands">
+                <div class="quick-cmd" onclick="sendQuickCommand('/ping')">/ping</div>
+                <div class="quick-cmd" onclick="sendQuickCommand('/list')">/list</div>
+                <div class="quick-cmd" onclick="sendQuickCommand('/server survival')">/server survival</div>
+                <div class="quick-cmd" onclick="sendQuickCommand('/spawn')">/spawn</div>
+                <div class="quick-cmd" onclick="sendQuickCommand('/home')">/home</div>
+                <div class="quick-cmd" onclick="sendQuickCommand('/help')">/help</div>
+                <div class="quick-cmd" onclick="sendQuickCommand('/ping all')">/ping all</div>
+                <div class="quick-cmd" onclick="sendQuickCommand('/gc')">/gc</div>
+                <div class="quick-cmd" onclick="sendQuickCommand('/tps')">/tps</div>
+            </div>
+            <div class="command-input-group">
+                <select id="botTarget" class="bot-select">
+                    <option value="all">📡 All Bots</option>
+                </select>
+                <input type="text" id="commandInput" class="command-input" placeholder="Type command or message..."
+                    onkeypress="handleCommandKeypress(event)">
+                <button class="send-btn" onclick="sendCommand()">
+                    <i class="fas fa-paper-plane"></i> Send
+                </button>
+            </div>
+        </div>
+
+        <!-- Console Section -->
+        <div class="console-section">
+            <div class="console-header">
+                <div class="console-title">
+                    <i class="fas fa-terminal"></i>
+                    <span>Live Console</span>
+                </div>
+                <button class="clear-btn" onclick="clearConsole()">
+                    <i class="fas fa-trash"></i> Clear
+                </button>
+            </div>
+            <div class="terminal" id="terminal">
+                <div style="text-align: center; color: var(--text-muted); padding: 2rem;">
+                    <i class="fas fa-spinner fa-spin"></i> Connecting to console...
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        let botsData = [];
+        let isAuthenticated = false;
+
+        // Initialize
+        function init() {
+            setupSocketEvents();
+            loadTheme();
+        }
+
+        function setupSocketEvents() {
+            socket.on('login-success', () => {
+                document.getElementById('loginOverlay').style.display = 'none';
+                document.getElementById('appContainer').style.display = 'flex';
+                isAuthenticated = true;
+                updateStatusUI('Online');
+                showToast('Login successful!', 'success');
+            });
+
+            socket.on('login-fail', (msg) => {
+                const errorDiv = document.getElementById('loginError');
+                errorDiv.textContent = msg || 'Invalid password';
+                errorDiv.style.display = 'block';
+                setTimeout(() => errorDiv.style.display = 'none', 3000);
+            });
+
+            socket.on('init', (data) => {
+                botsData = data.accounts || [];
+                updateServerInfo(data.serverIp);
+                updateGlobalStatus(data.globalStatus);
+                renderBots();
+                updateBotSelectors();
+                updateStats();
+            });
+
+            socket.on('global-status-update', (data) => {
+                updateGlobalStatus(data.status);
+            });
+
+            socket.on('status-update', (data) => {
+                const bot = botsData.find(b => b.username === data.username);
+                if (bot) bot.status = data.status;
+                renderBots();
+                updateStats();
+            });
+
+            socket.on('stats-update', (data) => {
+                const bot = botsData.find(b => b.username === data.username);
+                if (bot) bot.stats = data.stats;
+                renderBots();
+            });
+
+            socket.on('log', (data) => {
+                addLogToConsole(data);
+            });
+        }
+
+        // Navigate to Staff Dashboard
+        function goToStaffDashboard() {
+            // Open staff dashboard in same tab
+            window.location.href = 'staff_dashboard.html';
+
+            // Alternative: Open in new tab (uncomment if preferred)
+            // window.open('staff_dashboard.html', '_blank');
+        }
+
+        function attemptLogin() {
+            const password = document.getElementById('loginPassword').value;
+            if (password) {
+                socket.emit('staff-login', { password });
+            }
+        }
+
+        function handleLoginKeypress(e) {
+            if (e.key === 'Enter') attemptLogin();
+        }
+
+        function updateServerInfo(serverIp) {
+            document.getElementById('serverStatus').innerText = serverIp || 'Unknown';
+        }
+
+        function updateGlobalStatus(status) {
+            const statusText = document.getElementById('statusText');
+            const statusDot = document.getElementById('statusDot');
+
+            statusText.textContent = status === 'ONLINE' ? 'Online' : 'Offline';
+            if (status === 'ONLINE') {
+                statusDot.classList.add('online');
+            } else {
+                statusDot.classList.remove('online');
+            }
+        }
+
+        function updateStatusUI(status) {
+            const statusText = document.getElementById('statusText');
+            const statusDot = document.getElementById('statusDot');
+
+            statusText.textContent = status;
+            if (status === 'Online') {
+                statusDot.classList.add('online');
+            } else {
+                statusDot.classList.remove('online');
+            }
+        }
+
+        function updateStats() {
+            const total = botsData.length;
+            const online = botsData.filter(b => b.status && b.status.includes('Online')).length;
+            const offline = total - online;
+
+            document.getElementById('totalBots').innerText = total;
+            document.getElementById('onlineBots').innerText = online;
+            document.getElementById('offlineBots').innerText = offline;
+        }
+
+        function renderBots() {
+            const container = document.getElementById('botsScroll');
+
+            if (!botsData.length) {
+                container.innerHTML = '<div class="loading">No bots configured</div>';
+                return;
+            }
+
+            container.innerHTML = botsData.map(bot => `
+                <div class="bot-card">
+                    <div class="bot-header">
+                        <div class="bot-name">
+                            <i class="fas fa-robot"></i>
+                            ${escapeHtml(bot.username)}
+                        </div>
+                        <div class="bot-status ${bot.status && bot.status.includes('Online') ? 'status-online' : 'status-offline'}">
+                            ${bot.status && bot.status.includes('Online') ? '● Online' : '○ Offline'}
+                        </div>
+                    </div>
+                    <div class="bot-stats">
+                        <div class="bot-stat">
+                            <div class="bot-stat-value">${Math.round(bot.stats?.health || 0)}/20</div>
+                            <div class="bot-stat-label">Health</div>
+                            <div class="health-bar">
+                                <div class="health-fill" style="width: ${((bot.stats?.health || 0) / 20) * 100}%"></div>
+                            </div>
+                        </div>
+                        <div class="bot-stat">
+                            <div class="bot-stat-value">${Math.round(bot.stats?.food || 0)}/20</div>
+                            <div class="bot-stat-label">Food</div>
+                            <div class="health-bar">
+                                <div class="health-fill" style="width: ${((bot.stats?.food || 0) / 20) * 100}%; background: var(--warning);"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bot-actions">
+                        <button class="action-btn btn-start" onclick="controlBot('start', '${escapeHtml(bot.username)}')">
+                            <i class="fas fa-play"></i> Start
+                        </button>
+                        <button class="action-btn btn-stop" onclick="controlBot('stop', '${escapeHtml(bot.username)}')">
+                            <i class="fas fa-stop"></i> Stop
+                        </button>
+                        <button class="action-btn btn-restart" onclick="controlBot('restart', '${escapeHtml(bot.username)}')">
+                            <i class="fas fa-sync-alt"></i> Restart
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function updateBotSelectors() {
+            const select = document.getElementById('botTarget');
+            if (select && botsData.length) {
+                const currentValue = select.value;
+                select.innerHTML = '<option value="all">📡 All Bots</option>' +
+                    botsData.map(bot => `<option value="${escapeHtml(bot.username)}">🤖 ${escapeHtml(bot.username)}</option>`).join('');
+                if (currentValue) select.value = currentValue;
+            }
+        }
+
+        function controlBot(action, username) {
+            if (action === 'start') {
+                socket.emit('start-bot', username);
+                showToast(`Starting ${username}...`, 'info');
+                addSystemLog(`Starting bot: ${username}`);
+            } else if (action === 'stop') {
+                socket.emit('stop-bot', username);
+                showToast(`Stopping ${username}...`, 'warning');
+                addSystemLog(`Stopping bot: ${username}`);
+            } else if (action === 'restart') {
+                socket.emit('stop-bot', username);
+                showToast(`Restarting ${username}...`, 'info');
+                addSystemLog(`Restarting bot: ${username}`);
+                setTimeout(() => {
+                    socket.emit('start-bot', username);
+                }, 2000);
+            }
+        }
+
+        function sendCommand() {
+            const target = document.getElementById('botTarget').value;
+            const command = document.getElementById('commandInput').value;
+            if (command.trim()) {
+                socket.emit('send-chat', { username: target, message: command });
+                showToast(`Sent to ${target === 'all' ? 'all bots' : target}`, 'success');
+                addSystemLog(`[CMD] → ${target}: ${command}`);
+                document.getElementById('commandInput').value = '';
+            }
+        }
+
+        function sendQuickCommand(command) {
+            socket.emit('send-chat', { username: 'all', message: command });
+            showToast(`Executed: ${command}`, 'success');
+            addSystemLog(`[QUICK] → All: ${command}`);
+        }
+
+        function handleCommandKeypress(e) {
+            if (e.key === 'Enter') sendCommand();
+        }
+
+        function addLogToConsole(log) {
+            const terminal = document.getElementById('terminal');
+            if (!terminal) return;
+
+            if (terminal.innerHTML.includes('Connecting to console')) {
+                terminal.innerHTML = '';
+            }
+
+            const logLine = document.createElement('div');
+            logLine.className = 'log-line';
+            logLine.innerHTML = `
+                <span class="log-time">[${escapeHtml(log.time)}]</span>
+                <span class="log-user">[${escapeHtml(log.username)}]</span>
+                <span class="log-msg">${escapeHtml(log.msg)}</span>
+            `;
+            terminal.appendChild(logLine);
+            terminal.scrollTop = terminal.scrollHeight;
+
+            // Keep only last 200 logs
+            while (terminal.children.length > 200) {
+                terminal.removeChild(terminal.firstChild);
+            }
+        }
+
+        function addSystemLog(message) {
+            const terminal = document.getElementById('terminal');
+            if (!terminal) return;
+
+            const now = new Date().toLocaleTimeString();
+            const logLine = document.createElement('div');
+            logLine.className = 'log-line';
+            logLine.innerHTML = `
+                <span class="log-time">[${now}]</span>
+                <span class="log-user">[SYSTEM]</span>
+                <span class="log-msg" style="color: var(--warning);">${escapeHtml(message)}</span>
+            `;
+            terminal.appendChild(logLine);
+            terminal.scrollTop = terminal.scrollHeight;
+        }
+
+        function clearConsole() {
+            const terminal = document.getElementById('terminal');
+            if (terminal) {
+                terminal.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 2rem;">✨ Console cleared</div>';
+                showToast('Console cleared', 'info');
+            }
+        }
+
+        function refreshData() {
+            socket.emit('get-status');
+            showToast('Refreshing data...', 'info');
+        }
+
+        function toggleTheme() {
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            updateThemeIcon();
+        }
+
+        function loadTheme() {
+            const savedTheme = localStorage.getItem('theme') || 'dark';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+            updateThemeIcon();
+        }
+
+        function updateThemeIcon() {
+            const theme = document.documentElement.getAttribute('data-theme');
+            const icon = document.getElementById('themeIcon');
+            if (icon) icon.className = theme === 'dark' ? 'fas fa-moon' : 'fas fa-sun';
+        }
+
+        function logout() {
+            isAuthenticated = false;
+            document.getElementById('appContainer').style.display = 'none';
+            document.getElementById('loginOverlay').style.display = 'flex';
+            document.getElementById('loginPassword').value = '';
+            showToast('Logged out successfully', 'info');
+        }
+
+        function showToast(message, type) {
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.innerHTML = `<i class="fas ${type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle'}"></i> ${message}`;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str).replace(/[&<>]/g, function (m) {
+                if (m === '&') return '&amp;';
+                if (m === '<') return '&lt;';
+                if (m === '>') return '&gt;';
+                return m;
+            });
+        }
+
+        // Initialize
+        init();
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bot Code Editor</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    body { background: #1a1a2e; color: #eee; height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
+    .header { display: flex; align-items: center; gap: 15px; padding: 12px 20px; background: #16213e; border-bottom: 1px solid #0f3460; flex-shrink: 0; }
+    .header h1 { font-size: 1.2rem; color: #00d9ff; display: flex; align-items: center; gap: 8px; }
+    .conn-status { font-size: 0.8rem; padding: 4px 10px; border-radius: 12px; }
+    .conn-status.connected { background: rgba(0,255,136,0.15); color: #00ff88; }
+    .conn-status.disconnected { background: rgba(255,68,68,0.15); color: #ff4444; }
+    .header-actions { margin-left: auto; display: flex; gap: 10px; }
+    .btn { padding: 8px 16px; border: none; border-radius: 6px; font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-save { background: #00aa55; color: white; }
+    .btn-save:hover:not(:disabled) { background: #00cc66; }
+    .btn-restart { background: #cc8800; color: white; }
+    .btn-restart:hover:not(:disabled) { background: #eeaa00; }
+    .main { display: flex; flex: 1; overflow: hidden; }
+    .sidebar { width: 220px; background: #0f1626; border-right: 1px solid #0f3460; overflow-y: auto; flex-shrink: 0; }
+    .sidebar h3 { padding: 12px 15px 8px; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; color: #666; }
+    .file-item { padding: 10px 15px; font-size: 0.85rem; cursor: pointer; border-left: 3px solid transparent; color: #bbb; transition: all 0.15s; }
+    .file-item:hover { background: #16213e; color: #fff; }
+    .file-item.active { background: #16213e; border-left-color: #00d9ff; color: #00d9ff; }
+    .editor-wrap { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    .editor-bar { display: flex; align-items: center; gap: 10px; padding: 8px 15px; background: #0f1626; border-bottom: 1px solid #0f3460; font-size: 0.8rem; color: #888; }
+    .editor-bar .filename { color: #00d9ff; font-family: monospace; }
+    .editor-bar .saved { color: #00ff88; }
+    .editor-bar .unsaved { color: #ffaa00; }
+    .editor-container { flex: 1; position: relative; overflow: hidden; }
+    textarea#code { width: 100%; height: 100%; background: #0d1117; color: #c9d1d9; border: none; outline: none; padding: 15px; font-family: 'SF Mono', Consolas, Monaco, monospace; font-size: 13px; line-height: 1.6; resize: none; tab-size: 4; white-space: pre; overflow-wrap: normal; overflow-x: auto; }
+    .status-bar { padding: 6px 15px; background: #0f1626; border-top: 1px solid #0f3460; font-size: 0.75rem; color: #666; display: flex; justify-content: space-between; flex-shrink: 0; }
+    .startup-msg { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.85); z-index: 100; justify-content: center; align-items: center; flex-direction: column; gap: 15px; }
+    .startup-msg.show { display: flex; }
+    .spinner { width: 40px; height: 40px; border: 4px solid #0f3460; border-top-color: #00d9ff; border-radius: 50%; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>💻 Bot Code Editor</h1>
+    <span class="conn-status disconnected" id="connStatus">● Disconnected</span>
+    <div class="header-actions">
+      <button class="btn btn-save" id="btnSave" onclick="saveFile()" disabled>💾 Save</button>
+      <button class="btn btn-restart" id="btnRestart" onclick="restartBot()">↻ Restart PM2</button>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="sidebar">
+      <h3>📁 Files</h3>
+      <div id="fileList"></div>
+    </div>
+    <div class="editor-wrap">
+      <div class="editor-bar">
+        <span class="filename" id="currentFile">Select a file</span>
+        <span id="saveState"></span>
+      </div>
+      <div class="editor-container">
+        <textarea id="code" placeholder="Select a file from the sidebar to start editing..." spellcheck="false"></textarea>
+      </div>
+      <div class="status-bar">
+        <span id="statusLeft">Ready</span>
+        <span id="statusRight">Lines: 0 | Chars: 0</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="startup-msg" id="startupMsg">
+    <div class="spinner"></div>
+    <div style="color:#00d9ff;">Restarting bot process...</div>
+  </div>
+
+  <script>
+    const WS_PROTO = location.protocol === 'https:' ? 'wss' : 'ws';
+    const WS_URL = `${WS_PROTO}://${location.hostname}:${location.port}/ctrl`;
+    let ws = null;
+    let currentFile = null;
+    let fileContent = '';
+    let isDirty = false;
+
+    const el = {
+      connStatus: document.getElementById('connStatus'),
+      fileList: document.getElementById('fileList'),
+      code: document.getElementById('code'),
+      currentFile: document.getElementById('currentFile'),
+      saveState: document.getElementById('saveState'),
+      btnSave: document.getElementById('btnSave'),
+      btnRestart: document.getElementById('btnRestart'),
+      statusLeft: document.getElementById('statusLeft'),
+      statusRight: document.getElementById('statusRight'),
+      startupMsg: document.getElementById('startupMsg')
+    };
+
+    function connect() {
+      ws = new WebSocket(WS_URL);
+      ws.onopen = () => {
+        el.connStatus.textContent = '● Connected';
+        el.connStatus.className = 'conn-status connected';
+        log('Connected');
+        send({ action: 'files' });
+      };
+      ws.onmessage = (e) => {
+        try { handleMessage(JSON.parse(e.data)); } catch (err) {}
+      };
+      ws.onclose = () => {
+        el.connStatus.textContent = '● Disconnected';
+        el.connStatus.className = 'conn-status disconnected';
+        setTimeout(connect, 3000);
+      };
+      ws.onerror = () => {};
+    }
+
+    function send(data) {
+      if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(data));
+    }
+
+    function handleMessage(msg) {
+      switch (msg.type) {
+        case 'files':
+          renderFiles(msg.data);
+          break;
+        case 'file':
+          fileContent = msg.data.content;
+          el.code.value = fileContent;
+          currentFile = msg.data.file;
+          el.currentFile.textContent = currentFile;
+          el.btnSave.disabled = false;
+          isDirty = false;
+          updateSaveState();
+          updateStats();
+          el.statusLeft.textContent = `Loaded ${currentFile}`;
+          break;
+        case 'result':
+          if (msg.action === 'write') {
+            isDirty = false;
+            updateSaveState();
+            el.statusLeft.textContent = `Saved ${msg.file}`;
+          } else if (msg.action === 'restart') {
+            el.startupMsg.classList.remove('show');
+            el.statusLeft.textContent = 'Bot restarted';
+          }
+          break;
+        case 'error':
+          el.statusLeft.textContent = '❌ ' + msg.data;
+          break;
+      }
+    }
+
+    function renderFiles(files) {
+      el.fileList.innerHTML = '';
+      files.forEach(f => {
+        const div = document.createElement('div');
+        div.className = 'file-item' + (f === currentFile ? ' active' : '');
+        div.textContent = f;
+        div.onclick = () => openFile(f, div);
+        el.fileList.appendChild(div);
+      });
+    }
+
+    function openFile(file, elem) {
+      if (isDirty && !confirm('You have unsaved changes. Discard them?')) return;
+      send({ action: 'read', file });
+      document.querySelectorAll('.file-item').forEach(i => i.classList.remove('active'));
+      if (elem) elem.classList.add('active');
+    }
+
+    function saveFile() {
+      if (!currentFile) return;
+      send({ action: 'write', file: currentFile, content: el.code.value });
+    }
+
+    function restartBot() {
+      el.startupMsg.classList.add('show');
+      send({ action: 'restart' });
+    }
+
+    function updateSaveState() {
+      if (isDirty) {
+        el.saveState.textContent = '● Unsaved';
+        el.saveState.className = 'unsaved';
+      } else {
+        el.saveState.textContent = '✓ Saved';
+        el.saveState.className = 'saved';
+      }
+    }
+
+    function updateStats() {
+      const lines = el.code.value.split('\n').length;
+      el.statusRight.textContent = `Lines: ${lines} | Chars: ${el.code.value.length}`;
+    }
+
+    el.code.addEventListener('input', () => {
+      isDirty = true;
+      updateSaveState();
+      updateStats();
+    });
+
+    el.code.addEventListener('keydown', (e) => {
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        const start = el.code.selectionStart;
+        const end = el.code.selectionEnd;
+        el.code.value = el.code.value.substring(0, start) + '    ' + el.code.value.substring(end);
+        el.code.selectionStart = el.code.selectionEnd = start + 4;
+        isDirty = true;
+        updateSaveState();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        saveFile();
+      }
+    });
+
+    function log(msg) { el.statusLeft.textContent = msg; }
+
+    connect();
+  </script>
+</body>
+</html>

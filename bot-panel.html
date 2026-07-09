@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bot Control Panel</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    body { background: #1a1a2e; color: #eee; min-height: 100vh; padding: 20px; }
+    .container { max-width: 800px; margin: 0 auto; }
+    h1 { text-align: center; margin-bottom: 20px; color: #00d9ff; }
+    .card { background: #16213e; border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
+    .status { display: flex; align-items: center; gap: 12px; font-size: 1.2rem; }
+    .status-dot { width: 14px; height: 14px; border-radius: 50%; transition: all 0.3s; }
+    .status-dot.running { background: #00ff88; box-shadow: 0 0 10px #00ff88; }
+    .status-dot.stopped { background: #ff4444; box-shadow: 0 0 10px #ff4444; }
+    .status-dot.starting { background: #ffaa00; box-shadow: 0 0 10px #ffaa00; animation: pulse 1s infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    .btn-group { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 15px; }
+    .btn { padding: 12px 24px; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-start { background: #00aa55; color: white; }
+    .btn-start:hover:not(:disabled) { background: #00cc66; transform: translateY(-2px); }
+    .btn-stop { background: #cc3333; color: white; }
+    .btn-stop:hover:not(:disabled) { background: #ee4444; transform: translateY(-2px); }
+    .btn-restart { background: #cc8800; color: white; }
+    .btn-restart:hover:not(:disabled) { background: #eeaa00; transform: translateY(-2px); }
+    .info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-top: 15px; }
+    .info-item { background: #0f3460; padding: 15px; border-radius: 8px; }
+    .info-label { font-size: 0.85rem; color: #888; margin-bottom: 5px; }
+    .info-value { font-size: 1.1rem; font-weight: 500; color: #00d9ff; font-family: monospace; }
+    .logs { max-height: 300px; overflow-y: auto; background: #0f0f23; border-radius: 8px; padding: 15px; font-family: monospace; font-size: 0.85rem; line-height: 1.5; }
+    .log-entry { margin-bottom: 4px; white-space: pre-wrap; word-break: break-word; }
+    .log-entry.out { color: #00ff88; }
+    .log-entry.err { color: #ff4444; }
+    .log-entry.sys { color: #00d9ff; }
+    .connection-status { text-align: right; font-size: 0.85rem; margin-bottom: 10px; }
+    .connection-status.connected { color: #00ff88; }
+    .connection-status.disconnected { color: #ff4444; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🤖 Bot Control Panel</h1>
+
+    <div class="card">
+      <div class="connection-status disconnected" id="connStatus">● Disconnected</div>
+      <div class="status">
+        <div class="status-dot stopped" id="statusDot"></div>
+        <span id="statusText">Stopped</span>
+      </div>
+      <div class="btn-group">
+        <button class="btn btn-start" id="btnStart" onclick="sendAction('start')">▶ Start Bot</button>
+        <button class="btn btn-stop" id="btnStop" onclick="sendAction('stop')" disabled>■ Stop Bot</button>
+        <button class="btn btn-restart" id="btnRestart" onclick="sendAction('restart')" disabled>↻ Restart Bot</button>
+      </div>
+      <div class="info-grid">
+        <div class="info-item"><div class="info-label">PID</div><div class="info-value" id="infoPid">-</div></div>
+        <div class="info-item"><div class="info-label">Uptime</div><div class="info-value" id="infoUptime">-</div></div>
+        <div class="info-item"><div class="info-label">Memory</div><div class="info-value" id="infoMemory">-</div></div>
+        <div class="info-item"><div class="info-label">CPU</div><div class="info-value" id="infoCpu">-</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin-bottom: 10px;">📜 Live Logs</h3>
+      <div class="logs" id="logs"></div>
+    </div>
+  </div>
+
+  <script>
+    const WS_PROTO = location.protocol === 'https:' ? 'wss' : 'ws';
+    const WS_URL = `${WS_PROTO}://${location.hostname}:${location.port}/ctrl`;
+    let ws = null;
+    let reconnectTimer = null;
+
+    const elements = {
+      connStatus: document.getElementById('connStatus'),
+      statusDot: document.getElementById('statusDot'),
+      statusText: document.getElementById('statusText'),
+      btnStart: document.getElementById('btnStart'),
+      btnStop: document.getElementById('btnStop'),
+      btnRestart: document.getElementById('btnRestart'),
+      infoPid: document.getElementById('infoPid'),
+      infoUptime: document.getElementById('infoUptime'),
+      infoMemory: document.getElementById('infoMemory'),
+      infoCpu: document.getElementById('infoCpu'),
+      logs: document.getElementById('logs')
+    };
+
+    function connect() {
+      ws = new WebSocket(WS_URL);
+
+      ws.onopen = () => {
+        elements.connStatus.textContent = '● Connected';
+        elements.connStatus.className = 'connection-status connected';
+        log('sys', 'Connected to controller');
+        send({ action: 'status' });
+        send({ action: 'logs' });
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data);
+          handleMessage(msg);
+        } catch (e) {
+          console.error('Parse error:', e);
+        }
+      };
+
+      ws.onclose = () => {
+        elements.connStatus.textContent = '● Disconnected';
+        elements.connStatus.className = 'connection-status disconnected';
+        log('sys', 'Disconnected. Reconnecting in 3s...');
+        reconnectTimer = setTimeout(connect, 3000);
+      };
+
+      ws.onerror = (err) => {
+        log('err', 'WebSocket error: ' + err.message);
+      };
+    }
+
+    function send(data) {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify(data));
+      }
+    }
+
+    function sendAction(action) {
+      send({ action });
+      log('sys', `Sending ${action} command...`);
+    }
+
+    function handleMessage(msg) {
+      switch (msg.type) {
+        case 'status':
+          updateStatus(msg.data);
+          break;
+        case 'result':
+          log('sys', `${msg.action}: ${msg.success ? 'success' : 'failed'}`);
+          break;
+        case 'log':
+          log('out', msg.data);
+          break;
+        case 'error':
+          log('err', msg.data);
+          break;
+      }
+    }
+
+    function updateStatus(data) {
+      const status = data.status || 'unknown';
+      elements.statusText.textContent = status.charAt(0).toUpperCase() + status.slice(1);
+      elements.statusDot.className = 'status-dot ' + status;
+
+      const isRunning = status === 'online' || status === 'running';
+      elements.btnStart.disabled = isRunning;
+      elements.btnStop.disabled = !isRunning;
+      elements.btnRestart.disabled = !isRunning;
+
+      elements.infoPid.textContent = data.pid || '-';
+      elements.infoUptime.textContent = formatUptime(data.uptime);
+      elements.infoMemory.textContent = data.memory ? formatBytes(data.memory) : '-';
+      elements.infoCpu.textContent = data.cpu ? data.cpu.toFixed(1) + '%' : '-';
+    }
+
+    function log(type, text) {
+      const entry = document.createElement('div');
+      entry.className = `log-entry ${type}`;
+      const time = new Date().toLocaleTimeString();
+      entry.textContent = `[${time}] ${text}`;
+      elements.logs.appendChild(entry);
+      elements.logs.scrollTop = elements.logs.scrollHeight;
+      while (elements.logs.children.length > 500) {
+        elements.logs.removeChild(elements.logs.firstChild);
+      }
+    }
+
+    function formatUptime(ms) {
+      if (!ms) return '-';
+      const s = Math.floor(ms / 1000);
+      const h = Math.floor(s / 3600);
+      const m = Math.floor((s % 3600) / 60);
+      return `${h}h ${m}m`;
+    }
+
+    function formatBytes(bytes) {
+      if (!bytes) return '-';
+      const mb = bytes / 1024 / 1024;
+      return mb.toFixed(1) + ' MB';
+    }
+
+    connect();
+  </script>
+</body>
+</html>
